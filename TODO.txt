@@ -1,0 +1,17 @@
+Shock breakout interaction
+
+Circumstellar material interaction
+
+Basic rise time, peak magnitude
+
+Attempt to classify
+
+Weirdo models
+
+Either, assume a model and find parameters or attempt to classify
+
+II-b
+II-L
+II-P
+II-n
+I-bc
