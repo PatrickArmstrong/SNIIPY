@@ -53,7 +53,7 @@ class Data(object):
         d = read(self.fName, format='csv')
         f = self.fKey['check']
         for i in d:
-            filt = i[self.fKey['filt']]
+            filt = i[self.fKey['filt']].lower()
             det = f(i[self.fKey['upperlimit']])
             if det:
                 det = 'upp'
@@ -104,19 +104,18 @@ class Data(object):
         else:
             dystretch = None
         for filt in order:
-            if dxoff is not None:
-                xoff = dxoff[filt]
-            if dyoff is not None:
-                yoff = dyoff[filt]
-            if dxstretch is not None:
-                xstretch = dxstretch[filt]
-            if dystretch is not None:
-                dystretch = dystretch[filt]
             if filt in self.data['obs']:
+                spec['c'] = None
+                if dxoff is not None:
+                    xoff = dxoff[filt]
+                if dyoff is not None:
+                    yoff = dyoff[filt]
+                if dxstretch is not None:
+                    xstretch = dxstretch[filt]
+                if dystretch is not None:
+                    dystretch = dystretch[filt]
                 if filt in self.col:
                     spec['c'] = self.col[filt]
-                if 'c' not in spec:
-                    spec['c'] = None
                 x = [i * xstretch + xoff for i in self.data['obs'][filt]['time']]
                 if self.mag:
                     y = [i * ystretch + yoff for i in self.data['obs'][filt]['mag']]
@@ -129,10 +128,9 @@ class Data(object):
                 plt.scatter(x, y, label=filt, **spec)
         for filt in self.data['obs']:
             if filt not in order:
+                spec['c'] = None
                 if filt in self.col:
                     spec['c'] = self.col[filt]
-                if 'c' not in spec:
-                    spec['c'] = None
                 x = [i * xstretch + xoff for i in self.data['obs'][filt]['time']]
                 if self.mag:
                     y = [i * ystretch + yoff for i in self.data['obs'][filt]['mag']]
