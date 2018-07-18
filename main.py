@@ -1,15 +1,15 @@
-from data import *
+from object import *
 from fitter import *
 from model import *
 
 fitters = {'MCMC': MCMCFitter}
-models = {'peak': Peak}
+models = {'peak': Peak, 'rad': Radiation}
 
 
 class Main(object):
 
-    def __init__(self, fName, filt, fitter='MCMC', model='peak', residual=None, fKey=None, name=None, mag=True):
-        self.object = Data(fName, fKey=fKey, name=name, mag=mag)
+    def __init__(self, fName, filt, fitter='MCMC', model='peak', residual=None, fKey=None, name=None, mag=True, col=None):
+        self.object = Data(fName, fKey=fKey, name=name, mag=mag, col=col)
         self.filt = filt
         if fitter in fitters:
             fitter = fitters[fitter]
@@ -19,9 +19,7 @@ class Main(object):
             f = models[model]
             self.model = f(self.object, filt)
 
-            def fit(x, param):
-                return self.model.prior(param) * self.model.model(x, param)
-            self.fitter = fitter(fit, residual=residual, mag=mag)
+            self.fitter = fitter(self.model, residual=residual, mag=mag)
         else:
             print("Unknown model: %s" % model)
 
@@ -37,6 +35,23 @@ class Main(object):
             dy = self.object.data['obs'][self.filt]['eflux']
             if len(dy) == 0:
                 dy = None
-        self.fitter.fit(x, y, self.model.ndim, dy=None, args=args,
+        self.fitter.fit(x, y, self.model.ndim, dy=dy, args=args,
                         nwalkers=nwalkers, burnphase=burnphase, runphase=runphase, p0=p0)
         return self.fitter.param, self.fitter.paramErr
+
+    def plot(self, upper=True, show=True, err=True, spec={}, xoff=0, yoff=0, xstretch=1, ystretch=1):
+        self.object._plot(upper=upper, show=show, err=err, spec=spec,
+                          xoff=xoff, yoff=yoff, xstretch=xstretch, ystretch=ystretch)
+
+    def __getitem__(self, key):
+        if key in self.object.data:
+            return self.object.data[key]
+        elif key in self.object.data['obs']:
+            return self.object.data['obs'][key]
+        else:
+            rtn = {}
+            for filt in self.object.data['obs']:
+                if key in self.object.data['obs'][filt]:
+                    rtn[filt] = self.object.data['obs'][filt][key]
+        if rtn != {}:
+            return rtn

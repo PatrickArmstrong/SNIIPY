@@ -6,7 +6,7 @@ import emcee
 
 class Fitter(object):
 
-    def __init__(self, func, residual=None, mag=True):
+    def __init__(self, model, residual=None, mag=True):
         '''
         Parent Fitting Class
 
@@ -17,7 +17,9 @@ class Fitter(object):
             A function to be minimized to fit func to the data. Must be of the form f(param, func, x, y, *args) where args are additional arguments that can be passed such as uncertainty. Will default to chi squared if no residual is given.
         '''
 
-        self.func = func
+        self.model = model
+        self.func = lambda x, param: self.model.prior(
+            param) * self.model.model(x, param)
         self.mag = mag
         if residual is None:
             residual = chi_squared
@@ -35,12 +37,14 @@ class Fitter(object):
         if self.mag:
             plt.gca().invert_yaxis()
         plt.show()
+        # print(self.model.lim, self.model.val3, self.model.val4)
+        self.model.reset()
 
 
 class MCMCFitter(Fitter):
 
-    def __init__(self, func, residual=None, mag=True):
-        super().__init__(func, residual=residual, mag=mag)
+    def __init__(self, model, residual=None, mag=True):
+        super().__init__(model, residual=residual, mag=mag)
 
     def fit(self, x, y, ndim, dy=None, args=None, nwalkers=150, burnphase=400, runphase=1000, p0=None):
         '''
@@ -68,14 +72,15 @@ class MCMCFitter(Fitter):
         p0 (Iterable, optional):
             A list of best guess initial parameters, must be of size [ndim : nwalkers]. Defaults to random numbers between 0 and 1.
         '''
-
         self.x = x
         self.y = y
         if dy is None:
             dy = [i * 0.1 for i in self.y]
         self.dy = dy
         if args is None:
-            args = [dy]
+            args = [dy, self]
+        else:
+            args.append(self)
         self.ndim = ndim
         self.nwalkers = nwalkers
         self.burnphase = burnphase
@@ -90,17 +95,19 @@ class MCMCFitter(Fitter):
             nwalkers, ndim, self.residual, a=3.0, args=[self.func, x, y] + args)
         # Run a burn-in.
         print("Burning-in ...")
+        self.counter = 0
+        self.cmax = self.burnphase * self.nwalkers
         pos, prob, state = self.sampler.run_mcmc(p0, self.burnphase)
 
         # Reset the chain to remove the burn-in samples.
         self.sampler.reset()
-
         # Starting from the final position in the burn-in chain, sample for 1500
         # steps. (rstate0 is the state of the internal random number generator)
         print("Running MCMC ...")
+        self.counter = 0
+        self.cmax = self.runphase * self.nwalkers
         pos, prob, state = self.sampler.run_mcmc(
             pos, self.runphase, rstate0=state)
-
         # Print out the mean acceptance fraction.
         af = self.sampler.acceptance_fraction
         print("Mean acceptance fraction: %s" % np.mean(af))
@@ -128,7 +135,7 @@ class MCMCFitter(Fitter):
             plt.show()
 
 
-def chi_squared(param, fitfunc, x, y, e):
+def chi_squared(param, fitfunc, x, y, e, self):
     '''
     Default residual function to be minimised.
 
@@ -144,5 +151,16 @@ def chi_squared(param, fitfunc, x, y, e):
     e (Iterable):
         The combined uncertainty of each (x, y) data point.
     '''
-
-    return -0.5 * sum([((fitfunc(x[i], param) - y[i]) ** 2.) / (e[i] ** 2.) for i in range(len(x))])
+    self.counter += 1
+    if (100 * self.counter / self.cmax) % 5 == 0:
+        print('%s' % (100 * self.counter / self.cmax))
+    l = []
+    for i in range(len(x)):
+        v = ((fitfunc(x[i], param) - y[i]) ** 2.) / (e[i] ** 2.)
+        if np.isinf(v) or np.isnan(v):
+            # print(x[i], y[i], e[i])
+            self.model.reset()
+            return -np.inf
+        l.append(v)
+    self.model.reset()
+    return -0.5 * sum(l)
